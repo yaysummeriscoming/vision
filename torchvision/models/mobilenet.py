@@ -1,13 +1,24 @@
 from torch import nn
-from .utils import load_state_dict_from_url
 
 
-__all__ = ['MobileNetV2', 'mobilenet_v2']
-
-
-model_urls = {
-    'mobilenet_v2': 'https://download.pytorch.org/models/mobilenet_v2-b0353104.pth',
-}
+def _make_divisible(v, divisor, min_value=None):
+    """
+    This function is taken from the original tf repo.
+    It ensures that all layers have a channel number that is divisible by 8
+    It can be seen here:
+    https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet/mobilenet.py
+    :param v:
+    :param divisor:
+    :param min_value:
+    :return:
+    """
+    if min_value is None:
+        min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    # Make sure that round down does not go down by more than 10%.
+    if new_v < 0.9 * v:
+        new_v += divisor
+    return new_v
 
 
 class ConvBNReLU(nn.Sequential):
@@ -67,12 +78,15 @@ class MobileNetV2(nn.Module):
         ]
 
         # building first layer
-        input_channel = int(input_channel * width_mult)
-        self.last_channel = int(last_channel * max(1.0, width_mult))
+        _make_divisible
+        input_channel = _make_divisible(input_channel * width_mult, 8)
+        # input_channel = int(input_channel * width_mult)
+        # self.last_channel = int(last_channel * max(1.0, width_mult))
+        self.last_channel = _make_divisible(last_channel * max(1.0, width_mult), 8)
         features = [ConvBNReLU(3, input_channel, stride=2)]
         # building inverted residual blocks
         for t, c, n, s in inverted_residual_setting:
-            output_channel = int(c * width_mult)
+            output_channel = _make_divisible(c * width_mult, 8)
             for i in range(n):
                 stride = s if i == 0 else 1
                 features.append(block(input_channel, output_channel, stride, expand_ratio=t))
@@ -108,18 +122,5 @@ class MobileNetV2(nn.Module):
         return x
 
 
-def mobilenet_v2(pretrained=False, progress=True, **kwargs):
-    """
-    Constructs a MobileNetV2 architecture from
-    `"MobileNetV2: Inverted Residuals and Linear Bottlenecks" <https://arxiv.org/abs/1801.04381>`_.
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-        progress (bool): If True, displays a progress bar of the download to stderr
-    """
-    model = MobileNetV2(**kwargs)
-    if pretrained:
-        state_dict = load_state_dict_from_url(model_urls['mobilenet_v2'],
-                                              progress=progress)
-        model.load_state_dict(state_dict)
-    return model
+def mobilenet_v2(pretrained=False, **kwargs):
+    return MobileNetV2(**kwargs)
